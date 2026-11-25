@@ -1,105 +1,326 @@
-# ECE-013 – GPS Tracker Fleet Violation and Idling Cost Engine — Sample Data Pack
-Prepared by 10 SECONDS for Team E019.
+# GPS Tracker Fleet Violation and Idling Cost Engine
 
-This pack is the input for a fleet telematics engine: 12 delivery vans in 3 rectangular Bengaluru zones, GPS pings every minute for 2026-10-15. Your engine reads `commands.txt`, loads the masters and pings, detects GEOFENCE / OVERSPEED / IDLING / NIGHT_DRIVE / GPS_LOST events, and prints the event log and the daily fleet report.
+**An intelligent Python-based vehicle fleet monitoring and violation detection system using GPS telemetry data.**
 
-Pack conventions where the brief is silent: process each vehicle's pings in timestamp order (the file is sorted by timestamp then vehicle_id, except for one planted out-of-order row); a ping whose timestamp is not later than that vehicle's last accepted ping is out of order and rejected. A ping on the rectangle edge (latitude equal to min_lat/max_lat or longitude equal to min_lon/max_lon) is INSIDE. Overspeed means speed > 1.10 × limit (compare `speed*10 > limit*11` to avoid floating-point surprises). Each ping stands for one minute; an idle ping is ignition ON with speed 0.0. The night window is 23:00:00 ≤ time < 05:00:00. A gap is the difference between two consecutive accepted pings of the same vehicle; more than 15:00 minutes is GPS_LOST.
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
+![Status](https://img.shields.io/badge/Project-Completed-success)
+![Domain](https://img.shields.io/badge/Domain-IoT%20%7C%20Vehicle%20Telematics-orange)
+![License](https://img.shields.io/badge/License-MIT-green)
 
-Event times: `start_time` is the timestamp of the ping at which the event opens (2nd outside ping, 3rd over-limit ping, 11th idle ping, first moving night ping; for GPS_LOST the last ping before the gap); `end_time` is the closing ping (first inside ping; first ping at or below the limit; first ping that is not idle; 5th consecutive ping at or below 5 km/h; for GPS_LOST the first ping after the gap). Idle minutes for the cost = end_time − start_time of the IDLING event in minutes.
+---
 
-## Files
-| File | What it holds | Rows |
-|---|---|---|
-| zones.csv | Rectangular geofence zones | 3 |
-| vehicles.csv | Vans with driver, zone, speed limit and idle fuel burn | 12 |
-| pings.csv | 1-minute GPS pings for 2026-10-15 | 2541 |
-| commands.txt | Load commands, then the two print commands | 5 |
+## 1. Project Overview
 
-Volumes in this sample are reduced for email delivery; the hidden evaluation set is larger and uses the same schema. (Here each van's tracker covers roughly a 3.5-hour shift; the evaluation set covers full 14-hour shifts, about 10,000 pings.)
+The **GPS Tracker Fleet Violation and Idling Cost Engine** is a Python-based fleet monitoring system designed to process GPS telemetry data, detect vehicle violations, monitor driver behaviour, and calculate fuel costs associated with vehicle idling.
 
-## Column reference
-Conventions: dates `YYYY-MM-DD`; timestamps `YYYY-MM-DD HH:MM:SS` (24h, IST, no timezone suffix); money in Rs as plain decimals (no commas, no symbol); percentages as plain numbers (12.5 = 12.5%); booleans `true`/`false`; IDs uppercase with a fixed prefix.
+The system analyzes timestamped GPS records and identifies operational irregularities such as overspeeding, geofence violations, prolonged idling, night driving, and GPS signal loss.
 
-### zones.csv
-| Column | Type | Units / format | Allowed values | Notes |
-|---|---|---|---|---|
-| zone_id | string | ZONE-x | ZONE-S, ZONE-E, ZONE-N | Primary key |
-| zone_name | string | - | free text |  |
-| min_lat | decimal | degrees, 5 dp | -90 to 90 | Rectangle edge (inclusive) |
-| max_lat | decimal | degrees, 5 dp | -90 to 90 | Rectangle edge (inclusive) |
-| min_lon | decimal | degrees, 5 dp | -180 to 180 | Rectangle edge (inclusive) |
-| max_lon | decimal | degrees, 5 dp | -180 to 180 | Rectangle edge (inclusive) |
+It also calculates idling fuel consumption costs and generates daily driver performance reports, helping fleet operators improve vehicle utilization, monitor driver behaviour, and reduce unnecessary operational expenses.
 
-### vehicles.csv
-| Column | Type | Units / format | Allowed values | Notes |
-|---|---|---|---|---|
-| vehicle_id | string | VEH-nn | VEH-01 … VEH-12 | Primary key |
-| registration_no | string | KA-nn-XX-nnnn |  | Not used by any rule |
-| driver_name | string | - |  | One driver per vehicle for the day |
-| driver_mobile | string | 10 digits | starts 6–9 | Not used by any rule |
-| zone_id | string | ZONE-x | must exist in zones.csv | The vehicle's assigned geofence |
-| speed_limit_kmph | integer | km/h | 40, 50, 60 |  |
-| idle_litres_per_hour | decimal | litres/hour, 1 dp | 0.8–1.4 | Fuel price is Rs 92 per litre (from the brief) |
+The application follows a **command-file-driven architecture**, processing vehicle information, geographical zones, and GPS data from structured CSV files.
 
-### pings.csv
-| Column | Type | Units / format | Allowed values | Notes |
-|---|---|---|---|---|
-| ping_id | string | PNG-nnnnn | unique | Numbered in file order |
-| vehicle_id | string | VEH-nn | should exist in vehicles.csv | One planted unregistered tracker (VEH-13) |
-| timestamp | timestamp | YYYY-MM-DD HH:MM:SS | 2026-10-15 | One row per vehicle per minute while the tracker is on; two planted gaps; one out-of-order row |
-| latitude | decimal | degrees, 5 dp | -90 to 90 | Values outside the range are rejected |
-| longitude | decimal | degrees, 5 dp | -180 to 180 | Values outside the range are rejected |
-| speed_kmph | decimal | km/h, 1 dp | 0.0 and above |  |
-| ignition | string | - | ON, OFF | Idle = ON with speed 0.0; OFF with speed 0.0 is parked, not idling |
+## 2. Problem Statement
 
-## Command file format
-`commands.txt` holds one command per line as `COMMAND_NAME|arg1|arg2|...`. Commands must be processed in file order, top to bottom. Lines starting with `#` are comments and blank lines are ignored.
+Fleet operators face several challenges in monitoring vehicles efficiently:
 
-| Command | Arguments (in order) | Meaning |
-|---|---|---|
-| LOAD_ZONES | file | Load zones.csv |
-| LOAD_VEHICLES | file | Load vehicles.csv |
-| LOAD_PINGS | file | Load pings.csv, validate each ping, run the event detectors |
-| EVENT_LOG | vehicle_id or ALL | Print the event log (all vehicles, ordered by vehicle_id then start_time) |
-| DAILY_REPORT | YYYY-MM-DD | Print the daily fleet report for that date |
+- Difficulty tracking vehicle movement across predefined geographical boundaries.
+- Overspeeding and unsafe driving behaviour.
+- Fuel wastage caused by prolonged vehicle idling.
+- Unauthorized or unusual vehicle activity during restricted hours.
+- GPS connectivity interruptions and missing location updates.
+- Lack of consolidated reports for evaluating driver performance.
 
-`event_type` is one of GEOFENCE, OVERSPEED, IDLING, NIGHT_DRIVE, GPS_LOST. `idle_cost_rs` is 0.00 for every event that is not IDLING. `duration_min` is end_time − start_time in whole minutes.
+This project addresses these challenges through automated GPS data processing, event detection, cost calculation, and daily reporting.
 
-## Planted scenarios
-Line numbers count the header row as line 1, so the first data row of a CSV is line 2. For commands.txt the line number is the physical line in the file (comment lines included).
+## 3. Key Features
 
-- **Ping exactly on the geofence boundary (inside)** — VEH-04 (ZONE-S lat 12.88000–12.95000, lon 77.54000–77.63000): pings.csv line 956 (PNG-00955, VEH-04, 09:19:00) is outside, pings.csv line 966 (PNG-00965, VEH-04, 09:20:00) lies exactly on the zone edge (counts as inside, resets the counter), pings.csv line 976 (PNG-00975, VEH-04, 09:21:00) is outside again, pings.csv line 986 (PNG-00985, VEH-04, 09:22:00) back inside — no GEOFENCE event. Compare the real excursion on VEH-11: 7 outside pings from pings.csv line 2381 (PNG-02380, VEH-11, 20:53:00); the event opens at pings.csv line 2382 (PNG-02381, VEH-11, 20:54:00) and closes at pings.csv line 2388 (PNG-02387, VEH-11, 21:00:00).
-- **Speed exactly 10% above the limit (not overspeed)** — VEH-09 (limit 50 km/h): 4 consecutive pings at exactly 55.0 km/h starting pings.csv line 1459 (PNG-01458, VEH-09, 10:10:00) — that is exactly 10% above the limit, not more, so no OVERSPEED. Compare VEH-04: OVERSPEED opens at pings.csv line 1910 (PNG-01909, VEH-04, 11:02:00) (3rd over-limit ping); pings.csv line 1918 (PNG-01917, VEH-04, 11:03:00) is above the limit but within 10% so the event stays open; it closes at pings.csv line 1926 (PNG-01925, VEH-04, 11:04:00) (at or below the limit).
-- **Idle for exactly 10 minutes then moving** — VEH-01: ignition ON, speed 0.0 for exactly 10 pings from pings.csv line 641 (PNG-00640, VEH-01, 08:46:00), then moving at pings.csv line 726 (PNG-00725, VEH-01, 08:56:00) — no IDLING. Compare VEH-05: 24 idle pings from pings.csv line 1546 (PNG-01545, VEH-05, 10:19:00); IDLING opens at pings.csv line 1641 (PNG-01640, VEH-05, 10:29:00) (11th idle minute) and closes at pings.csv line 1759 (PNG-01758, VEH-05, 10:43:00) = 14 idle minutes.
-- **Movement starting at 22:59 and continuing past 23:00** — VEH-11: stationary until 22:58, moving from pings.csv line 2507 (PNG-02506, VEH-11, 22:59:00) (22:59 is outside the night window), NIGHT_DRIVE opens at pings.csv line 2508 (PNG-02507, VEH-11, 23:00:00); speeds 4.0, 5.0, 0.0, 0.0, 0.0 from 23:20 close it at pings.csv line 2532 (PNG-02531, VEH-11, 23:24:00) (5th consecutive ping at or below 5 km/h — 5.0 counts).
-- **Gap of exactly 15 minutes (not GPS_LOST)** — VEH-04: pings.csv line 1126 (PNG-01125, VEH-04, 09:36:00) then the next ping pings.csv line 1265 (PNG-01264, VEH-04, 09:51:00) — exactly 15 min apart, so no GPS_LOST and counters are NOT reset. The real gap: VEH-02 pings.csv line 2030 (PNG-02029, VEH-02, 11:18:00) → pings.csv line 2161 (PNG-02160, VEH-02, 11:40:00) is 22 min → GPS_LOST.
+### Vehicle and Fleet Management
+- Register multiple vehicles with their respective driver details.
+- Maintain vehicle-specific speed limits and idle fuel consumption rates.
+- Associate vehicles with predefined geographical zones.
 
-Extra traps (realistic things your validation should catch):
+### GPS Data Processing
+- Read and process timestamped GPS records from CSV files.
+- Validate incoming GPS records.
+- Handle invalid records, unknown vehicles, and out-of-order timestamps.
 
-- **GPS gap resets the overspeed counter** — VEH-02 has 2 over-limit pings before the 22-min gap (ending pings.csv line 2030 (PNG-02029, VEH-02, 11:18:00)) and 2 after it (from pings.csv line 2161 (PNG-02160, VEH-02, 11:40:00)); because GPS_LOST resets counters, there is NO OVERSPEED here (4 over-limit pings in total, never 3 consecutive after a reset).
-- **Out-of-order ping inside an overspeed run** — pings.csv line 152 (PNG-00151, VEH-08, 07:04:00) carries a timestamp 5 min earlier than the VEH-08 ping just before it (pings.csv line 151 (PNG-00150, VEH-08, 07:09:00)); reject it with an error line. It shows speed 0.0 — if you let it reset the counter you will miss the OVERSPEED that opens at pings.csv line 155 (PNG-00154, VEH-08, 07:10:00).
-- **Invalid coordinates** — pings.csv line 953 (PNG-00952, VEH-01, 09:19:00) latitude 91.24418 and pings.csv line 1243 (PNG-01242, VEH-12, 09:48:00) longitude 277.59213 are outside the valid ranges (-90..90, -180..180) → reject, error line, counters untouched.
-- **Ping from an unregistered tracker** — pings.csv line 1178 (PNG-01177, VEH-13, 09:41:00) to pings.csv line 1198 (PNG-01197, VEH-13, 09:43:00) are from VEH-13, which is not in vehicles.csv → reject each with an error line.
-- **Movement starting exactly at 05:00:00** — VEH-08 is parked from 04:50 and starts moving at pings.csv line 12 (PNG-00011, VEH-08, 05:00:00); the night window ends at 05:00:00 (exclusive), so no NIGHT_DRIVE.
-- **Driver score floor** — VEH-03 has 11 separate OVERSPEED bursts (first opens at pings.csv line 250 (PNG-00249, VEH-03, 07:37:00)); 100 - 110 = -10 → score floors at 0.
+### Automated Violation Detection
 
-## What is NOT in this pack
-Expected outputs are not provided for this set. Validate your engine with your own test suite against the rules in your brief (BR-01 … BR-07). A separate hidden input set with the same schema will be used at final evaluation; outputs are compared field-for-field, so follow the column formats above exactly in your own output.
+The system detects five major event categories:
 
-## Output format expected at evaluation
-Produce these files (CSV, header row, same conventions as above). Column order matters.
+| Event | Description |
+|---|---|
+| GEOFENCE | Detects vehicles operating outside their assigned geographical boundaries. |
+| OVERSPEED | Identifies vehicles exceeding their configured speed limits. |
+| IDLING | Detects prolonged vehicle idling based on ignition and duration conditions. |
+| NIGHT_DRIVE | Identifies vehicle movement during configured night hours. |
+| GPS_LOST | Detects interruptions in GPS updates beyond the defined threshold. |
 
-### event_log.csv
-One row per detected event, ordered by vehicle_id then start_time.
+The system records event start and end timestamps and calculates event durations where applicable.
 
-Columns in order: `vehicle_id`, `event_type`, `start_time`, `end_time`, `duration_min`, `idle_cost_rs`
+### Idling Cost Calculation
+- Calculates fuel consumed during idling.
+- Uses vehicle-specific idle fuel consumption rates.
+- Estimates the associated fuel cost.
+- Includes idling cost information in the generated reports.
 
-### daily_report.csv
-One row per registered vehicle for the date, ordered by vehicle_id. `idle_cost_rs` = sum over IDLING events of idle minutes / 60 × idle_litres_per_hour × 92, rounded to 2 decimals per event.
+### Driver Performance Scoring
+- Generates daily driver performance scores.
+- Evaluates vehicle activity using detected events.
+- Produces consolidated fleet performance information.
 
-Columns in order: `date`, `vehicle_id`, `driver_name`, `geofence_events`, `overspeed_events`, `idling_events`, `night_drive_events`, `gps_lost_events`, `idle_minutes`, `idle_cost_rs`, `driver_score`
+### Automated Report Generation
+The application generates three CSV reports:
 
-### errors.csv
-One row per rejected ping, in file order.
+| Report | Purpose |
+|---|---|
+| `event_log.csv` | Contains detected vehicle events and their details. |
+| `daily_report.csv` | Provides daily vehicle statistics, idling costs, and driver scores. |
+| `errors.csv` | Records invalid or rejected GPS records and processing errors. |
 
-Columns in order: `line_no`, `ping_id`, `vehicle_id`, `reason`
+## 4. System Architecture
+
+The project follows a modular architecture, separating GPS data processing, event detection, cost calculation, and report generation.
+
+```text
+                 INPUT DATA
+                     |
+          +----------+----------+
+          |          |          |
+       Vehicles    Zones     GPS Data
+          |          |          |
+          +----------+----------+
+                     |
+                     v
+              DATA READER
+                     |
+                     v
+             DATA VALIDATION
+                     |
+                     v
+             EVENT DETECTION
+                     |
+       +-------------+-------------+
+       |             |             |
+    GEOFENCE      OVERSPEED      IDLING
+       |             |             |
+       +-------------+-------------+
+                     |
+          +----------+----------+
+          |                     |
+       NIGHT DRIVE           GPS LOST
+          |                     |
+          +----------+----------+
+                     |
+                     v
+             COST CALCULATION
+                     |
+                     v
+           DRIVER SCORE ENGINE
+                     |
+                     v
+             REPORT GENERATION
+                     |
+          +----------+----------+
+          |          |          |
+       Event Log  Daily Report  Errors
+          CSV        CSV         CSV
+```
+
+## 5. Technology Stack
+
+| Technology | Usage |
+|---|---|
+| Python 3.10+ | Core programming language |
+| CSV | Input data and report storage |
+| Python Standard Library | Data processing, timestamps, calculations, and file handling |
+| Unittest | Unit testing and validation |
+| Git | Version control |
+| GitHub | Source code hosting |
+
+## 6. Project Structure
+
+```text
+E019-ECE-013/
+│
+├── data/
+│   ├── vehicles.csv
+│   ├── zones.csv
+│   ├── gps_data.csv
+│   ├── pings.csv
+│   ├── commands.txt
+│   └── README.md
+│
+├── src/
+│   ├── __init__.py
+│   ├── data_reader.py
+│   ├── gps_validator.py
+│   ├── event_detector.py
+│   ├── geofence.py
+│   ├── overspeed.py
+│   ├── idling.py
+│   ├── night_drive.py
+│   ├── gps_lost.py
+│   ├── cost_calculator.py
+│   ├── driver_score.py
+│   ├── report_generator.py
+│   └── ...
+│
+├── tests/
+│   ├── test_geofence.py
+│   ├── test_overspeed.py
+│   ├── test_idling.py
+│   ├── test_gps_lost.py
+│   ├── test_night_drive.py
+│   ├── test_cost_calculator.py
+│   └── ...
+│
+├── PHASE-1-DESIGN/
+│   └── ECE-013_GPS_Fleet_Design_Document.docx
+│
+├── main.py
+├── .gitignore
+├── event_log.csv
+├── daily_report.csv
+└── errors.csv
+```
+
+*Note: The structure above highlights the major project components. Individual module and test filenames may vary with implementation.*
+
+## 7. Installation and Setup
+
+### Prerequisites
+
+- Python 3.10 or higher.
+- Git.
+- Visual Studio Code or any Python-supported IDE.
+
+### Step 1: Clone the Repository
+
+```bash
+git clone https://github.com/Manasar115/GPS-Tracker-Fleet-Violation-System-E019-ECE-013-.git
+```
+
+### Step 2: Navigate to the Project Directory
+
+```bash
+cd GPS-Tracker-Fleet-Violation-System-E019-ECE-013-
+```
+
+### Step 3: Run the Application
+
+```bash
+python main.py
+```
+
+The application reads the configured input files, validates GPS records, processes vehicle activity, detects violations, and generates the corresponding reports.
+
+## 8. Running Unit Tests
+
+The project includes unit tests to verify the functionality of individual components.
+
+Run all tests using:
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+The tests cover:
+
+- Geofence boundary and location detection.
+- Overspeed detection and threshold conditions.
+- Idling duration and ignition conditions.
+- GPS signal loss detection and recovery.
+- Night driving detection.
+- Idling fuel cost calculations.
+- Driver score calculations.
+- Fleet report generation.
+- GPS record validation.
+
+## 9. Output and Reports
+
+After successful execution, the system generates the following reports:
+
+### Event Log — `event_log.csv`
+
+Stores detected events with information such as:
+
+- Vehicle ID.
+- Event type.
+- Event start time.
+- Event end time.
+- Event duration.
+- Related event details and calculated costs, where applicable.
+
+### Daily Report — `daily_report.csv`
+
+Provides a daily summary containing:
+
+- Vehicle identification.
+- Driver performance score.
+- Total idling duration.
+- Idling fuel cost.
+- Other daily fleet statistics.
+
+### Error Report — `errors.csv`
+
+Maintains records of rejected or invalid GPS data, including:
+
+- Invalid GPS coordinates.
+- Unknown vehicle identifiers.
+- Out-of-order GPS timestamps.
+- Other data validation errors.
+
+## 10. Applications
+
+This project can be applied in:
+
+- Commercial vehicle fleet management.
+- Logistics and transportation companies.
+- Delivery and distribution services.
+- School and employee transportation monitoring.
+- Vehicle telematics systems.
+- Fuel consumption and operational cost monitoring.
+
+## 11. Future Enhancements
+
+The current implementation uses CSV-based input and output. The following enhancements can extend the system:
+
+- Interactive fleet monitoring dashboard using Streamlit.
+- Real-time GPS tracking through IoT devices.
+- Integration with cloud databases.
+- Map-based visualization of vehicle locations.
+- Automated notifications for detected violations.
+- Advanced analytics for driver behaviour.
+- Predictive maintenance and fuel optimization.
+
+## 12. Learning Outcomes
+
+Through this project, the following technical concepts were implemented:
+
+- Modular Python programming.
+- File handling and CSV processing.
+- GPS coordinate validation.
+- Geographical boundary detection.
+- Timestamp and duration calculations.
+- Event-driven processing.
+- Fuel cost estimation.
+- Driver performance evaluation.
+- Unit testing and debugging.
+- Version control using Git and GitHub.
+
+## 13. Project Information
+
+| Detail | Information |
+|---|---|
+| Project Code | ECE-013 |
+| Project Title | GPS Tracker Fleet Violation and Idling Cost Engine |
+| Domain | IoT / Vehicle Telematics |
+| Programming Language | Python |
+| Application Type | Command-Line / CSV-Driven System |
+| Testing Framework | Python Unittest |
+| Repository | [GitHub Repository](https://github.com/Manasar115/GPS-Tracker-Fleet-Violation-System-E019-ECE-013-) |
+
+---
+
+**Developed as an ECE-013 project focused on intelligent fleet monitoring, automated violation detection, and vehicle operational cost analysis.**
