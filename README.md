@@ -35,11 +35,13 @@ This project addresses these challenges through automated GPS data processing, e
 ## 3. Key Features
 
 ### Vehicle and Fleet Management
+
 - Register multiple vehicles with their respective driver details.
 - Maintain vehicle-specific speed limits and idle fuel consumption rates.
 - Associate vehicles with predefined geographical zones.
 
 ### GPS Data Processing
+
 - Read and process timestamped GPS records from CSV files.
 - Validate incoming GPS records.
 - Handle invalid records, unknown vehicles, and out-of-order timestamps.
@@ -59,17 +61,20 @@ The system detects five major event categories:
 The system records event start and end timestamps and calculates event durations where applicable.
 
 ### Idling Cost Calculation
+
 - Calculates fuel consumed during idling.
 - Uses vehicle-specific idle fuel consumption rates.
 - Estimates the associated fuel cost.
 - Includes idling cost information in the generated reports.
 
 ### Driver Performance Scoring
+
 - Generates daily driver performance scores.
 - Evaluates vehicle activity using detected events.
 - Produces consolidated fleet performance information.
 
 ### Automated Report Generation
+
 The application generates three CSV reports:
 
 | Report | Purpose |
@@ -83,48 +88,48 @@ The application generates three CSV reports:
 The project follows a modular architecture, separating GPS data processing, event detection, cost calculation, and report generation.
 
 ```text
-                 INPUT DATA
-                     |
-          +----------+----------+
-          |          |          |
-       Vehicles    Zones     GPS Data
-          |          |          |
-          +----------+----------+
-                     |
-                     v
-              DATA READER
-                     |
-                     v
-             DATA VALIDATION
-                     |
-                     v
-             EVENT DETECTION
-                     |
-       +-------------+-------------+
-       |             |             |
-    GEOFENCE      OVERSPEED      IDLING
-       |             |             |
-       +-------------+-------------+
-                     |
-          +----------+----------+
-          |                     |
-       NIGHT DRIVE           GPS LOST
-          |                     |
-          +----------+----------+
-                     |
-                     v
-             COST CALCULATION
-                     |
-                     v
-           DRIVER SCORE ENGINE
-                     |
-                     v
-             REPORT GENERATION
-                     |
-          +----------+----------+
-          |          |          |
-       Event Log  Daily Report  Errors
-          CSV        CSV         CSV
+                  INPUT DATA
+                      |
+           +----------+----------+
+           |          |          |
+        Vehicles    Zones     GPS Data
+           |          |          |
+           +----------+----------+
+                      |
+                      v
+                 DATA READER
+                      |
+                      v
+               DATA VALIDATION
+                      |
+                      v
+                EVENT DETECTION
+                      |
+         +------------+------------+
+         |            |            |
+      GEOFENCE     OVERSPEED     IDLING
+         |            |            |
+         +------------+------------+
+                      |
+           +----------+----------+
+           |                     |
+        NIGHT DRIVE           GPS LOST
+           |                     |
+           +----------+----------+
+                      |
+                      v
+               COST CALCULATION
+                      |
+                      v
+              DRIVER SCORE ENGINE
+                      |
+                      v
+               REPORT GENERATION
+                      |
+           +----------+----------+
+           |          |          |
+        Event Log  Daily Report  Errors
+           CSV        CSV         CSV
 ```
 
 ## 5. Technology Stack
@@ -141,51 +146,35 @@ The project follows a modular architecture, separating GPS data processing, even
 ## 6. Project Structure
 
 ```text
-GPS-Tracker-Fleet-Violation-System-E019-ECE-013/
+E019-ECE-013/
 │
 ├── data/
-│   ├── vehicles.csv
-│   ├── zones.csv
 │   ├── gps_data.csv
 │   ├── pings.csv
-│   ├── commands.txt
+│   ├── vehicles.csv
+│   ├── zones.csv
 │   └── README.md
 │
+├── docs/
+│   ├── E019-ECE-013/
+│   ├── New folder/
+│   ├── New Folder (2)/
+│   ├── PHASE-1-DESIGN/
+│   ├── PHASE-2-DEVELOPMENT/
+│   ├── PHASE-3-TESTING/
+│   └── PHASE-4-FINALSUBMISSION/
+│
 ├── src/
-│   ├── __init__.py
-│   ├── data_reader.py
-│   ├── gps_validator.py
-│   ├── event_detector.py
-│   ├── geofence.py
-│   ├── overspeed.py
-│   ├── idling.py
-│   ├── night_drive.py
-│   ├── gps_lost.py
-│   ├── cost_calculator.py
-│   ├── driver_score.py
-│   ├── report_generator.py
-│   └── ...
 │
 ├── tests/
-│   ├── test_geofence.py
-│   ├── test_overspeed.py
-│   ├── test_idling.py
-│   ├── test_gps_lost.py
-│   ├── test_night_drive.py
-│   ├── test_cost_calculator.py
-│   └── ...
 │
-├── PHASE-1-DESIGN/
-│   └── ECE-013_GPS_Fleet_Design_Document.docx
-│
-├── main.py
 ├── .gitignore
+├── main.py
 ├── event_log.csv
 ├── daily_report.csv
-└── errors.csv
+├── errors.csv
+└── README.md
 ```
-
-*Note: The structure above highlights the major project components. Individual module and test filenames may vary with implementation.*
 
 ## 7. Installation and Setup
 
@@ -198,13 +187,13 @@ GPS-Tracker-Fleet-Violation-System-E019-ECE-013/
 ### Step 1: Clone the Repository
 
 ```bash
-git clone https://github.com/Manasar115/GPS-Tracker-Fleet-Violation-System-E019-ECE-013-.git
+git clone https://github.com/Manasar115/E019-ECE-013.git
 ```
 
 ### Step 2: Navigate to the Project Directory
 
 ```bash
-cd GPS-Tracker-Fleet-Violation-System-E019-ECE-013-
+cd E019-ECE-013
 ```
 
 ### Step 3: Run the Application
@@ -313,13 +302,14 @@ Through this project, the following technical concepts were implemented:
 
 | Detail | Information |
 |---|---|
+| Team ID | E019 |
 | Project Code | ECE-013 |
 | Project Title | GPS Tracker Fleet Violation and Idling Cost Engine |
 | Domain | IoT / Vehicle Telematics |
 | Programming Language | Python |
 | Application Type | Command-Line / CSV-Driven System |
 | Testing Framework | Python Unittest |
-| Repository | [GitHub Repository](https://github.com/Manasar115/GPS-Tracker-Fleet-Violation-System-E019-ECE-013-) |
+| Repository | [E019-ECE-013](https://github.com/Manasar115/E019-ECE-013) |
 
 ---
 
